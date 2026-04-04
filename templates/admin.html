@@ -1,0 +1,11 @@
+<h1>Painel Admin - Help Serviços Maiax</h1>
+
+<h2>Prestadores Pendentes</h2>
+
+{% for p in prestadores %}
+<p>
+{{p[1]}} - {{p[2]}} - {{p[3]}}
+<a href="/aprovar/{{p[0]}}">Aprovar</a>
+<a href="/rejeitar/{{p[0]}}">Rejeitar</a>
+</p>
+{% endfor %}
