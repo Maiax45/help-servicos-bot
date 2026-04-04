@@ -1,12 +1,7 @@
-from flask import Flask, request
+from flask import Flask
 
 app = Flask(__name__)
 
 @app.route("/")
 def home():
-    return "HOME OK"
-
-@app.route("/webhook", methods=["POST"])
-def webhook():
-    print("Webhook recebido")
-    return "ok", 200
+    return "FUNCIONANDO"
