@@ -36,7 +36,7 @@ def enviar_menu(chat_id):
 
 @app.route("/")
 def home():
-    return "Bot online!"
+    return "Bem-vindo ao Help Serviços Maiax!"
 
 @app.route("/webhook", methods=["POST"])
 def webhook():
@@ -63,35 +63,7 @@ def listar_prestadores(chat_id):
     cur.execute("SELECT nome, servico, telefone FROM prestadores WHERE status='aprovado'")
     dados = cur.fetchall()
 
-    resposta = "Prestadores disponíveis:\n\n"
+    if not dados:
+        enviar_mensagem(chat_id, "Ainda não há prestadores cadastrados.")
+        return
 
-    for nome, servico, telefone in dados:
-        whatsapp = f"https://wa.me/{telefone}"
-        resposta += f"{nome} - {servico}\nWhatsApp: {whatsapp}\n\n"
-
-    enviar_mensagem(chat_id, resposta)
-
-# PAINEL ADMIN
-@app.route("/admin")
-def admin():
-    conn = conectar()
-    cur = conn.cursor()
-    cur.execute("SELECT * FROM prestadores WHERE status='pendente'")
-    prestadores = cur.fetchall()
-    return render_template("admin.html", prestadores=prestadores)
-
-@app.route("/aprovar/<id>")
-def aprovar(id):
-    conn = conectar()
-    cur = conn.cursor()
-    cur.execute("UPDATE prestadores SET status='aprovado' WHERE id=%s", (id,))
-    conn.commit()
-    return redirect("/admin")
-
-@app.route("/rejeitar/<id>")
-def rejeitar(id):
-    conn = conectar()
-    cur = conn.cursor()
-    cur.execute("UPDATE prestadores SET status='rejeitado' WHERE id=%s", (id,))
-    conn.commit()
-    return redirect("/admin")
