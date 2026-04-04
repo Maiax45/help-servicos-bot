@@ -12,7 +12,7 @@ application = ApplicationBuilder().token(TOKEN).build()
 
 # Comando /start
 async def start(update, context):
-    await update.message.reply_text("Olá! Bem-vindo ao Help Serviços Maiax!")
+    await update.message.reply_text("Bot funcionando 100%!")
 
 application.add_handler(CommandHandler("start", start))
 
@@ -23,14 +23,13 @@ async def init_app():
 
 asyncio.run(init_app())
 
-# Webhook
-@app.route(f"/{TOKEN}", methods=["POST"])
+# Webhook fixo
+@app.route("/webhook", methods=["POST"])
 def webhook():
     update = Update.de_json(request.get_json(force=True), application.bot)
     asyncio.run(application.process_update(update))
     return "ok"
 
-# Página inicial
 @app.route("/")
 def home():
     return "Bot rodando"
