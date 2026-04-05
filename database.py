@@ -1,27 +1,51 @@
-import psycopg2
-import os
-
-DATABASE_URL = os.getenv("DATABASE_URL")
+import sqlite3
 
 def conectar():
-    return psycopg2.connect(DATABASE_URL)
+    return sqlite3.connect("banco.db")
 
-def criar_tabelas():
+def criar_tabela():
     conn = conectar()
-    cur = conn.cursor()
+    c = conn.cursor()
 
-    cur.execute("""
+    c.execute("""
     CREATE TABLE IF NOT EXISTS prestadores (
-        id SERIAL PRIMARY KEY,
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
         nome TEXT,
         servico TEXT,
         telefone TEXT,
         cidade TEXT,
-        status TEXT,
-        plano TEXT
+        status TEXT
     )
     """)
 
     conn.commit()
-    cur.close()
+    conn.close()
+
+def adicionar_prestador(nome, servico, telefone, cidade):
+    conn = conectar()
+    c = conn.cursor()
+
+    c.execute("INSERT INTO prestadores (nome, servico, telefone, cidade, status) VALUES (?, ?, ?, ?, ?)",
+              (nome, servico, telefone, cidade, "Ativo"))
+
+    conn.commit()
+    conn.close()
+
+def listar_prestadores():
+    conn = conectar()
+    c = conn.cursor()
+
+    c.execute("SELECT nome, servico, telefone, cidade FROM prestadores WHERE status='Ativo'")
+    dados = c.fetchall()
+
+    conn.close()
+    return dados
+
+def excluir_prestador(nome):
+    conn = conectar()
+    c = conn.cursor()
+
+    c.execute("DELETE FROM prestadores WHERE nome=?", (nome,))
+
+    conn.commit()
     conn.close()
