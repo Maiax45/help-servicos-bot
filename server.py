@@ -12,9 +12,8 @@ def home():
 def rodar_bot():
     main()
 
-if __name__ == "__main__":
+def start():
     t = threading.Thread(target=rodar_bot)
     t.start()
 
-    port = int(os.environ.get("PORT", 8080))
-    app.run(host="0.0.0.0", port=port)
+start()
