@@ -1,171 +1,137 @@
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 
-from database import (
-    criar_tabela,
-    adicionar_prestador,
-    listar_por_servico,
-    listar_todos,
-    prestadores_vencendo,
-    ativar_pagamento,
-    excluir_prestador,
-    tornar_destaque
-)
-
 TOKEN = "8625636756:AAHjtVORS0uNTX8q1VaFj3fRSjdzyrDW6TM"
-ADMIN_ID = 8625636756  # SEU ID AQUI
+ADMIN_ID = 8625636756  # SEU ID
 
-criar_tabela()
+prestadores = []
 
-# ===== MENU =====
+# MENU
 def menu(user_id):
     if user_id == ADMIN_ID:
-        teclado = [
+        return ReplyKeyboardMarkup([
             ["🔎 Buscar Serviço"],
             ["📝 Cadastrar Prestador"],
-            ["📖 Como Funciona"],
+            ["📖 Como Usar"],
             ["👑 Admin"]
-        ]
+        ], resize_keyboard=True)
     else:
-        teclado = [
+        return ReplyKeyboardMarkup([
             ["🔎 Buscar Serviço"],
             ["📝 Cadastrar Prestador"],
-            ["📖 Como Funciona"]
-        ]
+            ["📖 Como Usar"]
+        ], resize_keyboard=True)
 
-    return ReplyKeyboardMarkup(teclado, resize_keyboard=True)
-
-# ===== START =====
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# BOAS VINDAS
+async def boas_vindas(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
 
+    msg = """
+👋 Bem-vindo à *Help Serviços Maiax*!
+
+📌 *COMO USAR:*
+
+👥 *CLIENTE:*
+1. Clique em *Buscar Serviço*
+2. Digite o serviço (ex: eletricista)
+3. Escolha o profissional
+4. Entre em contato
+
+👨‍🔧 *PRESTADOR:*
+1. Clique em *Cadastrar Prestador*
+2. Envie:
+Nome - Serviço - Telefone - Cidade
+
+Exemplo:
+João - Eletricista - 38999999999 - Montes Claros
+"""
+
     if user_id == ADMIN_ID:
-        await update.message.reply_text("👑 Você entrou como ADMIN")
-    else:
-        await update.message.reply_text("👤 Você entrou como CLIENTE")
+        msg += "\n\n👑 Você está como ADMIN"
 
-    await update.message.reply_text(
-        "🚀 Bem-vindo à Help Serviços Maiax!",
-        reply_markup=menu(user_id)
-    )
+    await update.message.reply_text(msg, reply_markup=menu(user_id))
+    context.user_data["iniciou"] = True
 
-# ===== MENSAGENS =====
+# MENSAGENS
 async def mensagens(update: Update, context: ContextTypes.DEFAULT_TYPE):
     texto = update.message.text
     user_id = update.message.from_user.id
 
-    # ===== COMO FUNCIONA =====
-    if texto == "📖 Como Funciona":
-        msg = """
-👥 CLIENTE:
-1. Clique em Buscar Serviço
-2. Digite a profissão
-3. Escolha o profissional
-4. Entre em contato
+    # SE FOR A PRIMEIRA MENSAGEM → MOSTRA MENU
+    if not context.user_data.get("iniciou"):
+        await boas_vindas(update, context)
+        return
 
-👨‍🔧 PRESTADOR:
-1. Clique em Cadastrar Prestador
-2. Envie seus dados:
-   Nome - Serviço - Telefone - Cidade
-3. Ganhe 15 dias grátis
-4. Depois precisa renovar mensalmente
-"""
-        await update.message.reply_text(msg)
-
-    # ===== BUSCAR SERVIÇO =====
-    elif texto == "🔎 Buscar Serviço":
-        await update.message.reply_text("Digite o serviço (ex: eletricista, pedreiro):")
+    # BUSCAR
+    if texto == "🔎 Buscar Serviço":
+        await update.message.reply_text("Digite o serviço:")
         context.user_data["busca"] = True
 
     elif context.user_data.get("busca"):
-        resultados = listar_por_servico(texto)
+        resultados = [p for p in prestadores if texto.lower() in p["servico"].lower()]
 
         if not resultados:
-            await update.message.reply_text("Nenhum prestador encontrado.")
+            await update.message.reply_text("❌ Nenhum prestador encontrado.")
         else:
             for p in resultados:
-                estrela = "⭐ DESTAQUE\n" if p[4] == 1 else ""
-                msg = f"""{estrela}🔧 {p[1].upper()}
+                msg = f"""
+🔧 {p['servico'].upper()}
 
-👤 Nome: {p[0]}
-📍 Cidade: {p[3]}
-📞 Telefone: {p[2]}
+👤 Nome: {p['nome']}
+📍 Cidade: {p['cidade']}
+📞 Telefone: {p['telefone']}
 """
                 await update.message.reply_text(msg)
 
         context.user_data["busca"] = False
 
-    # ===== CADASTRAR PRESTADOR =====
+    # CADASTRO
     elif texto == "📝 Cadastrar Prestador":
-        await update.message.reply_text("Envie assim:\nNome - Serviço - Telefone - Cidade")
+        await update.message.reply_text("Envie:\nNome - Serviço - Telefone - Cidade")
         context.user_data["cadastro"] = True
 
     elif context.user_data.get("cadastro"):
         try:
             nome, servico, telefone, cidade = texto.split(" - ")
-            adicionar_prestador(nome, servico, telefone, cidade)
 
-            await update.message.reply_text("✅ Cadastro realizado! Você ganhou 15 dias grátis.")
+            prestadores.append({
+                "nome": nome,
+                "servico": servico,
+                "telefone": telefone,
+                "cidade": cidade
+            })
+
+            await update.message.reply_text("✅ Cadastro realizado!")
         except:
-            await update.message.reply_text("❌ Formato inválido. Use:\nNome - Serviço - Telefone - Cidade")
+            await update.message.reply_text("❌ Formato inválido.\nUse:\nNome - Serviço - Telefone - Cidade")
 
         context.user_data["cadastro"] = False
 
-    # ===== ADMIN =====
+    # COMO USAR
+    elif texto == "📖 Como Usar":
+        await boas_vindas(update, context)
+
+    # ADMIN
     elif texto == "👑 Admin":
         if user_id != ADMIN_ID:
-            await update.message.reply_text("Acesso negado.")
+            await update.message.reply_text("❌ Acesso negado.")
             return
 
-        lista = listar_todos()
-        vencendo = prestadores_vencendo()
+        if not prestadores:
+            await update.message.reply_text("Nenhum prestador cadastrado.")
+            return
 
-        msg = "📋 LISTA DE PRESTADORES:\n\n"
-        for p in lista:
-            msg += f"{p[0]} - {p[1]} - {p[2]}\n"
-
-        if vencendo:
-            msg += "\n⚠️ VENCENDO EM BREVE:\n"
-            for v in vencendo:
-                msg += f"{v[0]} - {v[1]}\n"
-
-        msg += "\nCOMANDOS ADMIN:\n"
-        msg += "Ativar Nome\n"
-        msg += "Excluir Nome\n"
-        msg += "Destaque Nome\n"
+        msg = "📋 Lista de Prestadores:\n\n"
+        for p in prestadores:
+            msg += f"{p['nome']} - {p['servico']} - {p['cidade']}\n"
 
         await update.message.reply_text(msg)
-        context.user_data["admin"] = True
 
-    # ===== COMANDOS ADMIN =====
-    elif context.user_data.get("admin"):
-        if user_id != ADMIN_ID:
-            return
-
-        if texto.startswith("Ativar "):
-            nome = texto.replace("Ativar ", "")
-            ativar_pagamento(nome)
-            await update.message.reply_text("✅ Pagamento ativado por 30 dias.")
-
-        elif texto.startswith("Excluir "):
-            nome = texto.replace("Excluir ", "")
-            excluir_prestador(nome)
-            await update.message.reply_text("🗑 Prestador excluído.")
-
-        elif texto.startswith("Destaque "):
-            nome = texto.replace("Destaque ", "")
-            tornar_destaque(nome)
-            await update.message.reply_text("⭐ Colocado em destaque.")
-
-# ===== RODAR BOT =====
+# RODAR
 app = ApplicationBuilder().token(TOKEN).build()
 
-app.add_handler(CommandHandler("start", start))
+app.add_handler(CommandHandler("start", boas_vindas))
 app.add_handler(MessageHandler(filters.TEXT, mensagens))
 
 print("Bot rodando...")
-app.run_webhook(
-    listen="0.0.0.0",
-    port=8000,
-    webhook_url="https://SEU-PROJETO.up.railway.app"
-)
+app.run_polling()
