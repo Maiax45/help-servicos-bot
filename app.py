@@ -1,124 +1,62 @@
-import os
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
-from flask import Flask, request
+from database import criar_tabela, adicionar_prestador, listar_prestadores
 
 TOKEN = "8625636756:AAHjtVORS0uNTX8q1VaFj3fRSjdzyrDW6TM"
-ADMIN_ID = 8625636756
-URL = "web-production-8e168.up.railway.app"  # URL do Railway
 
-prestadores = []
+criar_tabela()
 
-app_flask = Flask(__name__)
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    teclado = [
+        ["🔎 Procurar Prestador"],
+        ["📝 Cadastrar como Prestador"],
+        ["📞 Falar no WhatsApp"]
+    ]
 
-def menu(user_id):
-    if user_id == ADMIN_ID:
-        return ReplyKeyboardMarkup([
-            ["🔎 Buscar Serviço"],
-            ["📝 Cadastrar Prestador"],
-            ["📖 Como Usar"],
-            ["👑 Admin"]
-        ], resize_keyboard=True)
-    else:
-        return ReplyKeyboardMarkup([
-            ["🔎 Buscar Serviço"],
-            ["📝 Cadastrar Prestador"],
-            ["📖 Como Usar"]
-        ], resize_keyboard=True)
-
-async def boas_vindas(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.message.from_user.id
-
-    msg = """
-👋 Bem-vindo à Help Serviços Maiax!
-
-Digite qualquer mensagem para abrir o menu e encontrar um profissional.
-"""
-
-    if user_id == ADMIN_ID:
-        msg += "\n👑 Você é ADMIN"
-
-    await update.message.reply_text(msg, reply_markup=menu(user_id))
-    context.user_data["iniciou"] = True
+    await update.message.reply_text(
+        "Bem-vindo à Help Serviços Maiax!\nEscolha uma opção:",
+        reply_markup=ReplyKeyboardMarkup(teclado, resize_keyboard=True)
+    )
 
 async def mensagens(update: Update, context: ContextTypes.DEFAULT_TYPE):
     texto = update.message.text
-    user_id = update.message.from_user.id
 
-    if not context.user_data.get("iniciou"):
-        await boas_vindas(update, context)
-        return
+    if texto == "🔎 Procurar Prestador":
+        prestadores = listar_prestadores()
 
-    if texto == "🔎 Buscar Serviço":
-        await update.message.reply_text("Digite o serviço:")
-        context.user_data["busca"] = True
+        if not prestadores:
+            await update.message.reply_text("Nenhum prestador cadastrado.")
+            return
 
-    elif context.user_data.get("busca"):
-        resultados = [p for p in prestadores if texto.lower() in p["servico"].lower()]
+        resposta = "Prestadores disponíveis:\n\n"
+        for p in prestadores:
+            resposta += f"Nome: {p[0]}\nServiço: {p[1]}\nTelefone: {p[2]}\nCidade: {p[3]}\n\n"
 
-        if not resultados:
-            await update.message.reply_text("Nenhum prestador encontrado.")
-        else:
-            for p in resultados:
-                msg = f"""
-🔧 {p['servico']}
-👤 {p['nome']}
-📍 {p['cidade']}
-📞 {p['telefone']}
-"""
-                await update.message.reply_text(msg)
+        await update.message.reply_text(resposta)
 
-        context.user_data["busca"] = False
-
-    elif texto == "📝 Cadastrar Prestador":
-        await update.message.reply_text("Envie:\nNome - Serviço - Telefone - Cidade")
+    elif texto == "📝 Cadastrar como Prestador":
+        await update.message.reply_text(
+            "Envie:\nNome - Serviço - Telefone - Cidade\n\nExemplo:\nJoão - Eletricista - 38999999999 - Montes Claros"
+        )
         context.user_data["cadastro"] = True
 
     elif context.user_data.get("cadastro"):
         try:
             nome, servico, telefone, cidade = texto.split(" - ")
+            adicionar_prestador(nome, servico, telefone, cidade)
 
-            prestadores.append({
-                "nome": nome,
-                "servico": servico,
-                "telefone": telefone,
-                "cidade": cidade
-            })
-
-            await update.message.reply_text("Cadastro realizado!")
+            await update.message.reply_text("Cadastro realizado com sucesso!")
+            context.user_data["cadastro"] = False
         except:
             await update.message.reply_text("Formato inválido.")
 
-        context.user_data["cadastro"] = False
+    elif texto == "📞 Falar no WhatsApp":
+        await update.message.reply_text("https://wa.me/5538999999999")
 
-    elif texto == "👑 Admin":
-        if user_id != ADMIN_ID:
-            await update.message.reply_text("Acesso negado.")
-            return
+app = ApplicationBuilder().token(TOKEN).build()
 
-        msg = "Prestadores cadastrados:\n"
-        for p in prestadores:
-            msg += f"{p['nome']} - {p['servico']}\n"
+app.add_handler(CommandHandler("start", start))
+app.add_handler(MessageHandler(filters.TEXT, mensagens))
 
-        await update.message.reply_text(msg)
-
-# TELEGRAM BOT
-bot_app = ApplicationBuilder().token(TOKEN).build()
-bot_app.add_handler(CommandHandler("start", boas_vindas))
-bot_app.add_handler(MessageHandler(filters.TEXT, mensagens))
-
-# WEBHOOK ROUTE
-@app_flask.route(f"/{TOKEN}", methods=["POST"])
-async def webhook():
-    data = request.get_json(force=True)
-    update = Update.de_json(data, bot_app.bot)
-    await bot_app.process_update(update)
-    return "ok"
-
-@app_flask.route("/")
-def home():
-    return "Bot rodando!"
-
-if __name__ == "__main__":
-    bot_app.bot.set_webhook(f"{URL}/{TOKEN}")
-    app_flask.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+print("Bot rodando...")
+app.run_polling()
