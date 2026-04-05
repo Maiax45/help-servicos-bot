@@ -1,69 +1,63 @@
-from flask import Flask, request, render_template, redirect
-import requests
-import os
-import psycopg2
-from database import criar_tabelas
-from pagamentos import gerar_link_pagamento
+from telegram import Update, ReplyKeyboardMarkup
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
+from database import criar_tabela, adicionar_prestador, listar_prestadores
 
-app = Flask(__name__)
 TOKEN = "8625636756:AAHjtVORS0uNTX8q1VaFj3fRSjdzyrDW6TM"
-DATABASE_URL = os.getenv("DATABASE_URL")
 
-criar_tabelas()
+criar_tabela()
 
-def conectar():
-    return psycopg2.connect(DATABASE_URL)
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    teclado = [
+        ["🔎 Procurar Prestador"],
+        ["📝 Cadastrar como Prestador"],
+        ["📞 Falar no WhatsApp"]
+    ]
 
-def enviar_mensagem(chat_id, texto):
-    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-    payload = {"chat_id": chat_id, "text": texto}
-    requests.post(url, json=payload)
+    await update.message.reply_text(
+        "Bem-vindo à Help Serviços Maiax!\nEscolha uma opção:",
+        reply_markup=ReplyKeyboardMarkup(teclado, resize_keyboard=True)
+    )
 
-def enviar_menu(chat_id):
-    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-    payload = {
-        "chat_id": chat_id,
-        "text": "Você é:",
-        "reply_markup": {
-            "keyboard": [
-                ["Sou Cliente"],
-                ["Sou Prestador"]
-            ],
-            "resize_keyboard": True
-        }
-    }
-    requests.post(url, json=payload)
+async def mensagens(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    texto = update.message.text
 
-@app.route("/")
-def home():
-    return "Bem-vindo ao Help Serviços Maiax!"
+    if texto == "🔎 Procurar Prestador":
+        prestadores = listar_prestadores()
 
-@app.route("/webhook", methods=["POST"])
-def webhook():
-    data = request.get_json()
+        if not prestadores:
+            await update.message.reply_text("Nenhum prestador cadastrado.")
+            return
 
-    if "message" in data:
-        chat_id = data["message"]["chat"]["id"]
-        text = data["message"].get("text", "")
+        resposta = "Prestadores disponíveis:\n\n"
+        for p in prestadores:
+            resposta += f"Nome: {p[0]}\nServiço: {p[1]}\nTelefone: {p[2]}\nCidade: {p[3]}\n\n"
 
-        if text == "/start":
-            enviar_menu(chat_id)
+        await update.message.reply_text(resposta)
 
-        elif text == "Sou Prestador":
-            enviar_mensagem(chat_id, "Digite seu nome:")
+    elif texto == "📝 Cadastrar como Prestador":
+        await update.message.reply_text(
+            "Envie:\nNome - Serviço - Telefone - Cidade\n\nExemplo:\nJoão - Eletricista - 38999999999 - Montes Claros"
+        )
+        context.user_data["cadastro"] = True
 
-        elif text == "Sou Cliente":
-            listar_prestadores(chat_id)
+    elif context.user_data.get("cadastro"):
+        try:
+            nome, servico, telefone, cidade = texto.split(" - ")
+            adicionar_prestador(nome, servico, telefone, cidade)
 
-    return "ok"
+            await update.message.reply_text("Cadastro realizado com sucesso!")
+            context.user_data["cadastro"] = False
+        except:
+            await update.message.reply_text("Formato inválido.")
 
-def listar_prestadores(chat_id):
-    conn = conectar()
-    cur = conn.cursor()
-    cur.execute("SELECT nome, servico, telefone FROM prestadores WHERE status='aprovado'")
-    dados = cur.fetchall()
+    elif texto == "📞 Falar no WhatsApp":
+        await update.message.reply_text("https://wa.me/5538999999999")
 
-    if not dados:
-        enviar_mensagem(chat_id, "Ainda não há prestadores cadastrados.")
-        return
+app = ApplicationBuilder().token(TOKEN).build()
+
+app.add_handler(CommandHandler("start", start))
+app.add_handler(MessageHandler(filters.TEXT, mensagens))
+
+print("Bot rodando...")
+app.run_polling()
 
