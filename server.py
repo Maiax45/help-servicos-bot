@@ -9,11 +9,12 @@ app = Flask(__name__)
 def home():
     return "Help Serviços Maiax está online!"
 
-def rodar_bot():
+def iniciar_bot():
     main()
 
-def start():
-    t = threading.Thread(target=rodar_bot)
+if __name__ == "__main__":
+    iniciar_bot()
+else:
+    t = threading.Thread(target=iniciar_bot)
+    t.daemon = True
     t.start()
-
-start()
