@@ -1,11 +1,35 @@
-<h1>Painel Admin - Help Serviços Maiax</h1>
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Painel Admin - Help Serviços Maiax</title>
+</head>
+<body>
+    <h1>Painel Administrativo</h1>
+    <h2>Prestadores Cadastrados</h2>
 
-<h2>Prestadores Pendentes</h2>
+    <table border="1">
+        <tr>
+            <th>Nome</th>
+            <th>Serviço</th>
+            <th>Telefone</th>
+            <th>Cidade</th>
+            <th>Ação</th>
+        </tr>
 
-{% for p in prestadores %}
-<p>
-{{p[1]}} - {{p[2]}} - {{p[3]}}
-<a href="/aprovar/{{p[0]}}">Aprovar</a>
-<a href="/rejeitar/{{p[0]}}">Rejeitar</a>
-</p>
-{% endfor %}
+        {% for p in prestadores %}
+        <tr>
+            <td>{{ p[0] }}</td>
+            <td>{{ p[1] }}</td>
+            <td>{{ p[2] }}</td>
+            <td>{{ p[3] }}</td>
+            <td>
+                <form action="/excluir" method="post">
+                    <input type="hidden" name="nome" value="{{ p[0] }}">
+                    <button type="submit">Excluir</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+</body>
+</html>
