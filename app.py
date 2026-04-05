@@ -1,20 +1,21 @@
-from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
+from flask import Flask, request
 import sqlite3
 import datetime
 import os
+from telegram import Bot, Update
 
-TOKEN = "8625636756:AAHRL7_-JLbf5jPSknlkR2gSB6QblvKiBhw"  # TOKEN vem da Railway (mais seguro)
+TOKEN = "8625636756:AAHRL7_-JLbf5jPSknlkR2gSB6QblvKiBhw"
+bot = Bot(token=TOKEN)
+
+app = Flask(__name__)
 
 # ================= BANCO =================
 def conectar():
-    conn = sqlite3.connect("banco.db", check_same_thread=False)
-    return conn
+    return sqlite3.connect("banco.db")
 
 def criar_banco():
     conn = conectar()
     c = conn.cursor()
-
     c.execute("""
     CREATE TABLE IF NOT EXISTS prestadores (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -26,100 +27,70 @@ def criar_banco():
         destaque INTEGER DEFAULT 0
     )
     """)
-
     conn.commit()
     conn.close()
 
-# ================= COMANDOS =================
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "Bem-vindo ao Help Serviços Maiax\n\n"
-        "Digite:\nCadastrar Prestador\nProcurar Prestador"
-    )
+criar_banco()
 
-async def mensagem(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    texto = update.message.text
+# ================= WEBHOOK =================
+@app.route(f"/{TOKEN}", methods=["POST"])
+def webhook():
+    update = Update.de_json(request.get_json(force=True), bot)
 
-    if texto == "Cadastrar Prestador":
-        await update.message.reply_text("Digite:\nNome - Serviço - Cidade - Telefone")
+    if update.message:
+        texto = update.message.text
 
-    elif "-" in texto:
-        try:
-            dados = texto.split("-")
-            nome = dados[0].strip()
-            servico = dados[1].strip()
-            cidade = dados[2].strip()
-            telefone = dados[3].strip()
+        if texto == "/start":
+            bot.send_message(update.message.chat.id,
+                             "Bem-vindo ao Help Serviços Maiax\n\n"
+                             "Digite:\nCadastrar Prestador\nProcurar Prestador")
 
-            vencimento = (datetime.datetime.now() + datetime.timedelta(days=15)).strftime("%Y-%m-%d")
+        elif texto == "Cadastrar Prestador":
+            bot.send_message(update.message.chat.id,
+                             "Digite:\nNome - Serviço - Cidade - Telefone")
 
+        elif "-" in texto:
+            try:
+                dados = texto.split("-")
+                nome = dados[0].strip()
+                servico = dados[1].strip()
+                cidade = dados[2].strip()
+                telefone = dados[3].strip()
+
+                vencimento = (datetime.datetime.now() + datetime.timedelta(days=15)).strftime("%Y-%m-%d")
+
+                conn = conectar()
+                c = conn.cursor()
+                c.execute("INSERT INTO prestadores (nome, servico, cidade, telefone, vencimento) VALUES (?,?,?,?,?)",
+                          (nome, servico, cidade, telefone, vencimento))
+                conn.commit()
+                conn.close()
+
+                bot.send_message(update.message.chat.id, "Prestador cadastrado com 15 dias grátis!")
+            except:
+                bot.send_message(update.message.chat.id, "Erro no cadastro.")
+
+        elif texto == "Procurar Prestador":
             conn = conectar()
             c = conn.cursor()
-            c.execute("INSERT INTO prestadores (nome, servico, cidade, telefone, vencimento) VALUES (?,?,?,?,?)",
-                      (nome, servico, cidade, telefone, vencimento))
-            conn.commit()
+            c.execute("SELECT nome, servico, cidade, telefone FROM prestadores WHERE destaque = 1")
+            dados = c.fetchall()
             conn.close()
 
-            await update.message.reply_text("Prestador cadastrado com 15 dias grátis!")
-        except:
-            await update.message.reply_text("Erro no cadastro. Use:\nNome - Serviço - Cidade - Telefone")
+            if dados:
+                resposta = "Prestadores em destaque:\n\n"
+                for d in dados:
+                    resposta += f"Nome: {d[0]}\nServiço: {d[1]}\nCidade: {d[2]}\nTelefone: {d[3]}\n\n"
+            else:
+                resposta = "Nenhum prestador em destaque."
 
-    elif texto == "Procurar Prestador":
-        conn = conectar()
-        c = conn.cursor()
-        c.execute("SELECT nome, servico, cidade, telefone FROM prestadores WHERE destaque = 1")
-        dados = c.fetchall()
-        conn.close()
+            bot.send_message(update.message.chat.id, resposta)
 
-        if dados:
-            resposta = "Prestadores em destaque:\n\n"
-            for d in dados:
-                resposta += f"Nome: {d[0]}\nServiço: {d[1]}\nCidade: {d[2]}\nTelefone: {d[3]}\n\n"
-        else:
-            resposta = "Nenhum prestador em destaque."
+    return "ok"
 
-        await update.message.reply_text(resposta)
-
-# ================= ADMIN =================
-async def destacar(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    try:
-        id_prestador = context.args[0]
-
-        conn = conectar()
-        c = conn.cursor()
-        c.execute("UPDATE prestadores SET destaque = 1 WHERE id = ?", (id_prestador,))
-        conn.commit()
-        conn.close()
-
-        await update.message.reply_text("Prestador colocado em destaque!")
-    except:
-        await update.message.reply_text("Use: /destacar ID")
-
-async def liberar(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    try:
-        id_prestador = context.args[0]
-        nova_data = (datetime.datetime.now() + datetime.timedelta(days=30)).strftime("%Y-%m-%d")
-
-        conn = conectar()
-        c = conn.cursor()
-        c.execute("UPDATE prestadores SET vencimento = ? WHERE id = ?", (nova_data, id_prestador))
-        conn.commit()
-        conn.close()
-
-        await update.message.reply_text("Plano renovado por 30 dias!")
-    except:
-        await update.message.reply_text("Use: /liberar ID")
-
-# ================= MAIN =================
-def main():
-    criar_banco()
-
-    app = ApplicationBuilder().token(TOKEN).build()
-
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("destacar", destacar))
-    app.add_handler(CommandHandler("liberar", liberar))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, mensagem))
-
-    print("Bot rodando...")
-    app.run_polling()
+# ================= SET WEBHOOK =================
+@app.route("/setwebhook")
+def set_webhook():
+    url = os.getenv("URL")
+    bot.set_webhook(f"{url}/{TOKEN}")
+    return "Webhook configurado!"
