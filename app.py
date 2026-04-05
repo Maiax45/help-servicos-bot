@@ -1,12 +1,12 @@
+import os
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 
 TOKEN = "8625636756:AAHjtVORS0uNTX8q1VaFj3fRSjdzyrDW6TM"
-ADMIN_ID = 8625636756  # SEU ID
+ADMIN_ID = 8625636756
 
 prestadores = []
 
-# MENU
 def menu(user_id):
     if user_id == ADMIN_ID:
         return ReplyKeyboardMarkup([
@@ -22,47 +22,30 @@ def menu(user_id):
             ["📖 Como Usar"]
         ], resize_keyboard=True)
 
-# BOAS VINDAS
 async def boas_vindas(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
 
     msg = """
-👋 Bem-vindo à *Help Serviços Maiax*!
+👋 Bem-vindo à Help Serviços Maiax!
 
-📌 *COMO USAR:*
-
-👥 *CLIENTE:*
-1. Clique em *Buscar Serviço*
-2. Digite o serviço (ex: eletricista)
-3. Escolha o profissional
-4. Entre em contato
-
-👨‍🔧 *PRESTADOR:*
-1. Clique em *Cadastrar Prestador*
-2. Envie:
-Nome - Serviço - Telefone - Cidade
-
-Exemplo:
-João - Eletricista - 38999999999 - Montes Claros
+Digite qualquer mensagem para usar o menu abaixo.
 """
 
     if user_id == ADMIN_ID:
-        msg += "\n\n👑 Você está como ADMIN"
+        msg += "\n👑 Você está como ADMIN"
 
     await update.message.reply_text(msg, reply_markup=menu(user_id))
     context.user_data["iniciou"] = True
 
-# MENSAGENS
 async def mensagens(update: Update, context: ContextTypes.DEFAULT_TYPE):
     texto = update.message.text
     user_id = update.message.from_user.id
 
-    # SE FOR A PRIMEIRA MENSAGEM → MOSTRA MENU
+    # PRIMEIRA MENSAGEM
     if not context.user_data.get("iniciou"):
         await boas_vindas(update, context)
         return
 
-    # BUSCAR
     if texto == "🔎 Buscar Serviço":
         await update.message.reply_text("Digite o serviço:")
         context.user_data["busca"] = True
@@ -71,21 +54,19 @@ async def mensagens(update: Update, context: ContextTypes.DEFAULT_TYPE):
         resultados = [p for p in prestadores if texto.lower() in p["servico"].lower()]
 
         if not resultados:
-            await update.message.reply_text("❌ Nenhum prestador encontrado.")
+            await update.message.reply_text("Nenhum prestador encontrado.")
         else:
             for p in resultados:
                 msg = f"""
-🔧 {p['servico'].upper()}
-
-👤 Nome: {p['nome']}
-📍 Cidade: {p['cidade']}
-📞 Telefone: {p['telefone']}
+🔧 {p['servico']}
+👤 {p['nome']}
+📍 {p['cidade']}
+📞 {p['telefone']}
 """
                 await update.message.reply_text(msg)
 
         context.user_data["busca"] = False
 
-    # CADASTRO
     elif texto == "📝 Cadastrar Prestador":
         await update.message.reply_text("Envie:\nNome - Serviço - Telefone - Cidade")
         context.user_data["cadastro"] = True
@@ -101,37 +82,34 @@ async def mensagens(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "cidade": cidade
             })
 
-            await update.message.reply_text("✅ Cadastro realizado!")
+            await update.message.reply_text("Cadastro realizado!")
         except:
-            await update.message.reply_text("❌ Formato inválido.\nUse:\nNome - Serviço - Telefone - Cidade")
+            await update.message.reply_text("Formato inválido.")
 
         context.user_data["cadastro"] = False
 
-    # COMO USAR
-    elif texto == "📖 Como Usar":
-        await boas_vindas(update, context)
-
-    # ADMIN
     elif texto == "👑 Admin":
         if user_id != ADMIN_ID:
-            await update.message.reply_text("❌ Acesso negado.")
+            await update.message.reply_text("Acesso negado.")
             return
 
-        if not prestadores:
-            await update.message.reply_text("Nenhum prestador cadastrado.")
-            return
-
-        msg = "📋 Lista de Prestadores:\n\n"
+        msg = "Prestadores cadastrados:\n"
         for p in prestadores:
-            msg += f"{p['nome']} - {p['servico']} - {p['cidade']}\n"
+            msg += f"{p['nome']} - {p['servico']}\n"
 
         await update.message.reply_text(msg)
 
-# RODAR
+# WEBHOOK (RAILWAY)
+PORT = int(os.environ.get("PORT", 8000))
+URL = "https://SEU-PROJETO.up.railway.app"
+
 app = ApplicationBuilder().token(TOKEN).build()
 
 app.add_handler(CommandHandler("start", boas_vindas))
 app.add_handler(MessageHandler(filters.TEXT, mensagens))
 
-print("Bot rodando...")
-app.run_polling()
+app.run_webhook(
+    listen="0.0.0.0",
+    port=PORT,
+    webhook_url=URL
+)
