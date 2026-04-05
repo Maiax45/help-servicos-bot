@@ -2,12 +2,13 @@ from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 import sqlite3
 import datetime
+import os
 
-TOKEN = "8625636756:AAHRL7_-JLbf5jPSknlkR2gSB6QblvKiBhw"
+TOKEN = "8625636756:AAHRL7_-JLbf5jPSknlkR2gSB6QblvKiBhw"  # TOKEN vem da Railway (mais seguro)
 
 # ================= BANCO =================
 def conectar():
-    conn = sqlite3.connect("banco.db")
+    conn = sqlite3.connect("banco.db", check_same_thread=False)
     return conn
 
 def criar_banco():
@@ -33,9 +34,7 @@ def criar_banco():
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "Bem-vindo ao Help Serviços Maiax\n\n"
-        "Digite:\n"
-        "Cadastrar Prestador\n"
-        "Procurar Prestador"
+        "Digite:\nCadastrar Prestador\nProcurar Prestador"
     )
 
 async def mensagem(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -45,22 +44,25 @@ async def mensagem(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Digite:\nNome - Serviço - Cidade - Telefone")
 
     elif "-" in texto:
-        dados = texto.split("-")
-        nome = dados[0].strip()
-        servico = dados[1].strip()
-        cidade = dados[2].strip()
-        telefone = dados[3].strip()
+        try:
+            dados = texto.split("-")
+            nome = dados[0].strip()
+            servico = dados[1].strip()
+            cidade = dados[2].strip()
+            telefone = dados[3].strip()
 
-        vencimento = (datetime.datetime.now() + datetime.timedelta(days=15)).strftime("%Y-%m-%d")
+            vencimento = (datetime.datetime.now() + datetime.timedelta(days=15)).strftime("%Y-%m-%d")
 
-        conn = conectar()
-        c = conn.cursor()
-        c.execute("INSERT INTO prestadores (nome, servico, cidade, telefone, vencimento) VALUES (?,?,?,?,?)",
-                  (nome, servico, cidade, telefone, vencimento))
-        conn.commit()
-        conn.close()
+            conn = conectar()
+            c = conn.cursor()
+            c.execute("INSERT INTO prestadores (nome, servico, cidade, telefone, vencimento) VALUES (?,?,?,?,?)",
+                      (nome, servico, cidade, telefone, vencimento))
+            conn.commit()
+            conn.close()
 
-        await update.message.reply_text("Prestador cadastrado com 15 dias grátis!")
+            await update.message.reply_text("Prestador cadastrado com 15 dias grátis!")
+        except:
+            await update.message.reply_text("Erro no cadastro. Use:\nNome - Serviço - Cidade - Telefone")
 
     elif texto == "Procurar Prestador":
         conn = conectar()
@@ -80,27 +82,33 @@ async def mensagem(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ================= ADMIN =================
 async def destacar(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    id_prestador = context.args[0]
+    try:
+        id_prestador = context.args[0]
 
-    conn = conectar()
-    c = conn.cursor()
-    c.execute("UPDATE prestadores SET destaque = 1 WHERE id = ?", (id_prestador,))
-    conn.commit()
-    conn.close()
+        conn = conectar()
+        c = conn.cursor()
+        c.execute("UPDATE prestadores SET destaque = 1 WHERE id = ?", (id_prestador,))
+        conn.commit()
+        conn.close()
 
-    await update.message.reply_text("Prestador colocado em destaque!")
+        await update.message.reply_text("Prestador colocado em destaque!")
+    except:
+        await update.message.reply_text("Use: /destacar ID")
 
 async def liberar(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    id_prestador = context.args[0]
-    nova_data = (datetime.datetime.now() + datetime.timedelta(days=30)).strftime("%Y-%m-%d")
+    try:
+        id_prestador = context.args[0]
+        nova_data = (datetime.datetime.now() + datetime.timedelta(days=30)).strftime("%Y-%m-%d")
 
-    conn = conectar()
-    c = conn.cursor()
-    c.execute("UPDATE prestadores SET vencimento = ? WHERE id = ?", (nova_data, id_prestador))
-    conn.commit()
-    conn.close()
+        conn = conectar()
+        c = conn.cursor()
+        c.execute("UPDATE prestadores SET vencimento = ? WHERE id = ?", (nova_data, id_prestador))
+        conn.commit()
+        conn.close()
 
-    await update.message.reply_text("Plano renovado por 30 dias!")
+        await update.message.reply_text("Plano renovado por 30 dias!")
+    except:
+        await update.message.reply_text("Use: /liberar ID")
 
 # ================= MAIN =================
 def main():
