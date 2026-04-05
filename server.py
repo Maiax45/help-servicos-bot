@@ -1,20 +1,20 @@
-from flask import Flask, render_template, request, redirect
-from database import listar_prestadores, excluir_prestador, criar_tabela
+from flask import Flask
+import threading
+import os
+from app import main
 
-app = Flask(__name__, template_folder="modelos")
+app = Flask(__name__)
 
-criar_tabela()
+@app.route('/')
+def home():
+    return "Help Serviços Maiax está online!"
 
-@app.route("/")
-def admin():
-    prestadores = listar_prestadores()
-    return render_template("admin.html", prestadores=prestadores)
-
-@app.route("/excluir", methods=["POST"])
-def excluir():
-    nome = request.form["nome"]
-    excluir_prestador(nome)
-    return redirect("/")
+def rodar_bot():
+    main()
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    t = threading.Thread(target=rodar_bot)
+    t.start()
+
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host="0.0.0.0", port=port)
