@@ -13,7 +13,7 @@ from database import (
 )
 
 TOKEN = "8625636756:AAHjtVORS0uNTX8q1VaFj3fRSjdzyrDW6TM"
-ADMIN_ID = "8625636756"  # PEGAR NO @userinfobot
+ADMIN_ID = 8625636756  # PEGAR NO @userinfobot
 
 criar_tabela()
 
