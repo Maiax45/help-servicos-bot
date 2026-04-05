@@ -1,4 +1,5 @@
 import sqlite3
+from datetime import datetime, timedelta
 
 def conectar():
     return sqlite3.connect("banco.db")
@@ -13,7 +14,10 @@ def criar_tabela():
         nome TEXT,
         servico TEXT,
         telefone TEXT,
-        cidade TEXT
+        cidade TEXT,
+        data_cadastro TEXT,
+        data_vencimento TEXT,
+        status TEXT
     )
     """)
 
@@ -24,31 +28,58 @@ def adicionar_prestador(nome, servico, telefone, cidade):
     conn = conectar()
     c = conn.cursor()
 
-    c.execute("INSERT INTO prestadores (nome, servico, telefone, cidade) VALUES (?, ?, ?, ?)",
-              (nome, servico, telefone, cidade))
+    data_cadastro = datetime.now()
+    vencimento = data_cadastro + timedelta(days=15)
+
+    c.execute("""
+    INSERT INTO prestadores 
+    (nome, servico, telefone, cidade, data_cadastro, data_vencimento, status)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    """, (nome, servico, telefone, cidade, data_cadastro, vencimento, "Ativo"))
 
     conn.commit()
     conn.close()
-
-def listar_prestadores():
-    conn = conectar()
-    c = conn.cursor()
-
-    c.execute("SELECT nome, servico FROM prestadores")
-    dados = c.fetchall()
-
-    conn.close()
-    return dados
 
 def listar_por_servico(servico):
     conn = conectar()
     c = conn.cursor()
 
-    c.execute("SELECT nome, servico, telefone, cidade FROM prestadores WHERE servico LIKE ?", ('%' + servico + '%',))
+    hoje = datetime.now()
+
+    c.execute("""
+    SELECT nome, servico, telefone, cidade 
+    FROM prestadores 
+    WHERE servico LIKE ? AND status='Ativo' AND data_vencimento >= ?
+    """, ('%' + servico + '%', hoje))
+
+    dados = c.fetchall()
+    conn.close()
+    return dados
+
+def listar_todos():
+    conn = conectar()
+    c = conn.cursor()
+
+    c.execute("SELECT nome, servico, data_vencimento, status FROM prestadores")
     dados = c.fetchall()
 
     conn.close()
     return dados
+
+def ativar_pagamento(nome):
+    conn = conectar()
+    c = conn.cursor()
+
+    nova_data = datetime.now() + timedelta(days=30)
+
+    c.execute("""
+    UPDATE prestadores 
+    SET data_vencimento=?, status='Ativo'
+    WHERE nome=?
+    """, (nova_data, nome))
+
+    conn.commit()
+    conn.close()
 
 def excluir_prestador(nome):
     conn = conectar()
