@@ -13,37 +13,48 @@ from database import (
 )
 
 TOKEN = "8625636756:AAHjtVORS0uNTX8q1VaFj3fRSjdzyrDW6TM"
-ADMIN_ID = 8625636756  # PEGAR NO @userinfobot
+ADMIN_ID = 8625636756  # SEU ID AQUI
 
 criar_tabela()
 
+# ===== MENU =====
 def menu(user_id):
     if user_id == ADMIN_ID:
-        return ReplyKeyboardMarkup([
+        teclado = [
             ["🔎 Buscar Serviço"],
             ["📝 Cadastrar Prestador"],
             ["📖 Como Funciona"],
             ["👑 Admin"]
-        ], resize_keyboard=True)
+        ]
     else:
-        return ReplyKeyboardMarkup([
+        teclado = [
             ["🔎 Buscar Serviço"],
             ["📝 Cadastrar Prestador"],
             ["📖 Como Funciona"]
-        ], resize_keyboard=True)
+        ]
 
+    return ReplyKeyboardMarkup(teclado, resize_keyboard=True)
+
+# ===== START =====
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
+
+    if user_id == ADMIN_ID:
+        await update.message.reply_text("👑 Você entrou como ADMIN")
+    else:
+        await update.message.reply_text("👤 Você entrou como CLIENTE")
+
     await update.message.reply_text(
         "🚀 Bem-vindo à Help Serviços Maiax!",
         reply_markup=menu(user_id)
     )
 
+# ===== MENSAGENS =====
 async def mensagens(update: Update, context: ContextTypes.DEFAULT_TYPE):
     texto = update.message.text
     user_id = update.message.from_user.id
 
-    # COMO FUNCIONA
+    # ===== COMO FUNCIONA =====
     if texto == "📖 Como Funciona":
         msg = """
 👥 CLIENTE:
@@ -54,15 +65,16 @@ async def mensagens(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 👨‍🔧 PRESTADOR:
 1. Clique em Cadastrar Prestador
-2. Envie seus dados
+2. Envie seus dados:
+   Nome - Serviço - Telefone - Cidade
 3. Ganhe 15 dias grátis
-4. Após isso, precisa renovar mensalmente
+4. Depois precisa renovar mensalmente
 """
         await update.message.reply_text(msg)
 
-    # BUSCA
+    # ===== BUSCAR SERVIÇO =====
     elif texto == "🔎 Buscar Serviço":
-        await update.message.reply_text("Digite o serviço:")
+        await update.message.reply_text("Digite o serviço (ex: eletricista, pedreiro):")
         context.user_data["busca"] = True
 
     elif context.user_data.get("busca"):
@@ -70,25 +82,22 @@ async def mensagens(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if not resultados:
             await update.message.reply_text("Nenhum prestador encontrado.")
-            context.user_data["busca"] = False
-            return
-
-        for p in resultados:
-            estrela = "⭐ DESTAQUE\n" if p[4] == 1 else ""
-            msg = f"""
-{estrela}🔧 {p[1].upper()}
+        else:
+            for p in resultados:
+                estrela = "⭐ DESTAQUE\n" if p[4] == 1 else ""
+                msg = f"""{estrela}🔧 {p[1].upper()}
 
 👤 Nome: {p[0]}
 📍 Cidade: {p[3]}
 📞 Telefone: {p[2]}
 """
-            await update.message.reply_text(msg)
+                await update.message.reply_text(msg)
 
         context.user_data["busca"] = False
 
-    # CADASTRO
+    # ===== CADASTRAR PRESTADOR =====
     elif texto == "📝 Cadastrar Prestador":
-        await update.message.reply_text("Envie:\nNome - Serviço - Telefone - Cidade")
+        await update.message.reply_text("Envie assim:\nNome - Serviço - Telefone - Cidade")
         context.user_data["cadastro"] = True
 
     elif context.user_data.get("cadastro"):
@@ -96,55 +105,59 @@ async def mensagens(update: Update, context: ContextTypes.DEFAULT_TYPE):
             nome, servico, telefone, cidade = texto.split(" - ")
             adicionar_prestador(nome, servico, telefone, cidade)
 
-            await update.message.reply_text("Cadastro realizado! Você ganhou 15 dias grátis.")
-            context.user_data["cadastro"] = False
+            await update.message.reply_text("✅ Cadastro realizado! Você ganhou 15 dias grátis.")
         except:
-            await update.message.reply_text("Formato inválido.")
+            await update.message.reply_text("❌ Formato inválido. Use:\nNome - Serviço - Telefone - Cidade")
 
-    # ADMIN
+        context.user_data["cadastro"] = False
+
+    # ===== ADMIN =====
     elif texto == "👑 Admin":
         if user_id != ADMIN_ID:
+            await update.message.reply_text("Acesso negado.")
             return
 
         lista = listar_todos()
         vencendo = prestadores_vencendo()
 
-        msg = "📋 Prestadores:\n\n"
+        msg = "📋 LISTA DE PRESTADORES:\n\n"
         for p in lista:
             msg += f"{p[0]} - {p[1]} - {p[2]}\n"
 
         if vencendo:
-            msg += "\n⚠️ Vencendo em breve:\n"
+            msg += "\n⚠️ VENCENDO EM BREVE:\n"
             for v in vencendo:
                 msg += f"{v[0]} - {v[1]}\n"
 
-        msg += "\nComandos:\n"
-        msg += "Ativar: nome\n"
-        msg += "Excluir: nome\n"
-        msg += "Destaque: nome\n"
+        msg += "\nCOMANDOS ADMIN:\n"
+        msg += "Ativar Nome\n"
+        msg += "Excluir Nome\n"
+        msg += "Destaque Nome\n"
 
         await update.message.reply_text(msg)
         context.user_data["admin"] = True
 
+    # ===== COMANDOS ADMIN =====
     elif context.user_data.get("admin"):
         if user_id != ADMIN_ID:
             return
 
-        if texto.startswith("Ativar"):
+        if texto.startswith("Ativar "):
             nome = texto.replace("Ativar ", "")
             ativar_pagamento(nome)
-            await update.message.reply_text("Pagamento ativado por 30 dias.")
+            await update.message.reply_text("✅ Pagamento ativado por 30 dias.")
 
-        elif texto.startswith("Excluir"):
+        elif texto.startswith("Excluir "):
             nome = texto.replace("Excluir ", "")
             excluir_prestador(nome)
-            await update.message.reply_text("Prestador excluído.")
+            await update.message.reply_text("🗑 Prestador excluído.")
 
-        elif texto.startswith("Destaque"):
+        elif texto.startswith("Destaque "):
             nome = texto.replace("Destaque ", "")
             tornar_destaque(nome)
-            await update.message.reply_text("Prestador colocado em destaque.")
+            await update.message.reply_text("⭐ Colocado em destaque.")
 
+# ===== RODAR BOT =====
 app = ApplicationBuilder().token(TOKEN).build()
 
 app.add_handler(CommandHandler("start", start))
