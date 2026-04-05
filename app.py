@@ -1,9 +1,9 @@
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
-from database import criar_tabela, adicionar_prestador, listar_por_servico, listar_prestadores, excluir_prestador
+from database import criar_tabela, adicionar_prestador, listar_por_servico, listar_todos, ativar_pagamento, excluir_prestador
 
 TOKEN = "8625636756:AAHjtVORS0uNTX8q1VaFj3fRSjdzyrDW6TM"
-ADMIN_ID = "8625636756"  # Coloque seu ID do Telegram
+ADMIN_ID = "8625636756"
 
 criar_tabela()
 
@@ -11,12 +11,13 @@ def menu():
     return ReplyKeyboardMarkup([
         ["🔎 Buscar Serviço"],
         ["📝 Cadastrar Prestador"],
-        ["👑 Painel Admin"]
+        ["📖 Como Funciona"],
+        ["👑 Admin"]
     ], resize_keyboard=True)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "🚀 Bem-vindo à Help Serviços Maiax!\n\nEscolha uma opção:",
+        "Bem-vindo à Help Serviços Maiax!",
         reply_markup=menu()
     )
 
@@ -24,16 +25,36 @@ async def mensagens(update: Update, context: ContextTypes.DEFAULT_TYPE):
     texto = update.message.text
     user_id = update.message.from_user.id
 
-    # BUSCAR SERVIÇO
-    if texto == "🔎 Buscar Serviço":
-        await update.message.reply_text("Digite o serviço que você procura:")
+    # COMO FUNCIONA
+    if texto == "📖 Como Funciona":
+        msg = """
+👥 CLIENTE:
+1. Clique em Buscar Serviço
+2. Digite a profissão
+3. Escolha o profissional
+4. Entre em contato
+
+👨‍🔧 PRESTADOR:
+1. Clique em Cadastrar Prestador
+2. Envie seus dados
+3. Você ganha 15 dias grátis
+4. Após 15 dias, precisa pagar para continuar
+
+💰 Pagamento via PIX
+Envie o comprovante para o administrador.
+"""
+        await update.message.reply_text(msg)
+
+    # BUSCA
+    elif texto == "🔎 Buscar Serviço":
+        await update.message.reply_text("Digite o serviço:")
         context.user_data["busca"] = True
 
     elif context.user_data.get("busca"):
         resultados = listar_por_servico(texto)
 
         if not resultados:
-            await update.message.reply_text("❌ Nenhum prestador encontrado.")
+            await update.message.reply_text("Nenhum prestador encontrado.")
             context.user_data["busca"] = False
             return
 
@@ -45,17 +66,16 @@ async def mensagens(update: Update, context: ContextTypes.DEFAULT_TYPE):
 📍 Cidade: {p[3]}
 📞 Telefone: {p[2]}
 
-⭐ Profissional verificado
+⭐ Profissional Verificado
 """
             await update.message.reply_text(msg)
 
         context.user_data["busca"] = False
 
-    # CADASTRAR PRESTADOR
+    # CADASTRO
     elif texto == "📝 Cadastrar Prestador":
         await update.message.reply_text(
-            "Envie no formato:\n\nNome - Serviço - Telefone - Cidade\n\n"
-            "Exemplo:\nJoão - Eletricista - 38999999999 - Montes Claros"
+            "Envie:\nNome - Serviço - Telefone - Cidade"
         )
         context.user_data["cadastro"] = True
 
@@ -63,37 +83,35 @@ async def mensagens(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             nome, servico, telefone, cidade = texto.split(" - ")
             adicionar_prestador(nome, servico, telefone, cidade)
-            await update.message.reply_text("✅ Cadastro realizado!")
+
+            await update.message.reply_text(
+                "Cadastro realizado!\nVocê ganhou 15 dias grátis."
+            )
             context.user_data["cadastro"] = False
         except:
-            await update.message.reply_text("❌ Formato inválido.")
+            await update.message.reply_text("Formato inválido.")
 
-    # PAINEL ADMIN
-    elif texto == "👑 Painel Admin":
+    # ADMIN
+    elif texto == "👑 Admin":
         if user_id != ADMIN_ID:
-            await update.message.reply_text("❌ Você não é admin.")
+            await update.message.reply_text("Acesso negado.")
             return
 
-        prestadores = listar_prestadores()
+        lista = listar_todos()
+        msg = "Prestadores:\n\n"
+        for p in lista:
+            msg += f"{p[0]} - {p[1]} - {p[3]}\n"
 
-        if not prestadores:
-            await update.message.reply_text("Nenhum prestador cadastrado.")
-            return
-
-        msg = "📋 Prestadores cadastrados:\n\n"
-        for p in prestadores:
-            msg += f"{p[0]} - {p[1]}\n"
-
-        msg += "\nDigite o NOME para excluir."
+        msg += "\nDigite o nome para:\n1 - Ativar pagamento\n2 - Excluir"
 
         await update.message.reply_text(msg)
-        context.user_data["excluir"] = True
+        context.user_data["admin"] = True
 
-    elif context.user_data.get("excluir"):
+    elif context.user_data.get("admin"):
         if user_id == ADMIN_ID:
-            excluir_prestador(texto)
-            await update.message.reply_text("🗑️ Prestador excluído.")
-            context.user_data["excluir"] = False
+            ativar_pagamento(texto)
+            await update.message.reply_text("Pagamento confirmado. Prestador ativado por 30 dias.")
+            context.user_data["admin"] = False
 
 app = ApplicationBuilder().token(TOKEN).build()
 
@@ -102,4 +120,3 @@ app.add_handler(MessageHandler(filters.TEXT, mensagens))
 
 print("Bot rodando...")
 app.run_polling()
-
