@@ -2,7 +2,7 @@ from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 from database import criar_tabela, adicionar_prestador, listar_prestadores
 
-TOKEN = "8625636756:AAHjtVORS0uNTX8q1VaFj3fRSjdzyrDW6TM"
+TOKEN = "8625636756:AAHRL7_-JLbf5jPSknlkR2gSB6QblvKiBhw"
 
 criar_tabela()
 
